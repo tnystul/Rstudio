@@ -1,0 +1,117 @@
+---
+title: "Align Multiple Control and Nhe2 mutant datasets"
+output: html_notebook
+---
+
+```{r}
+#load libraries and set working direcctory
+library(Seurat)
+setwd("/wynton/group/nystul/Nhe2_12_2020")
+```
+
+```{r}
+#make Seurat object from matrix files
+seur.data <- Read10X("/wynton/group/nystul/Nhe2_12_2020/Control/filtered_feature_bc_matrix/")
+data1 <- CreateSeuratObject(counts = seur.data, project = "data1", min.cells = 3, min.features = 200)
+```
+
+```{r}
+#set filtering parameters
+data1[["percent.mt"]] <- PercentageFeatureSet(data1, pattern = "mt:")
+VlnPlot(data1, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+```
+```{r}
+#filter dataset
+data1 <- subset(data1, subset = nFeature_RNA > 500 & nFeature_RNA < 3000 & nCount_RNA > 1000 & nCount_RNA < 25000 & percent.mt < 30)
+data1
+```
+
+```{r}
+#Normalize and scale data, and determine principle components
+data1 <- NormalizeData(data1, normalization.method = "LogNormalize", scale.factor = 10000)
+
+data1 <- FindVariableFeatures(data1, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(data1)
+data1 <- ScaleData(data1, features = all.genes)
+
+data1 <- RunPCA(data1, features = VariableFeatures(object = data1))
+
+DimHeatmap(data1, dims = 1:15, cells = 500, balanced = TRUE)
+
+data1 <- JackStraw(data1, num.replicate = 100)
+data1 <- ScoreJackStraw(data1, dims = 1:20)
+ElbowPlot(data1)
+```
+
+```{r}
+#create RDS object
+data1 <- FindNeighbors(data1, dims = 1:20)
+data1 <- RunUMAP(data1, dims = 1:10)
+
+FeaturePlot(data1, "nFeature_RNA")
+FeaturePlot(data1, "nCount_RNA")
+FeaturePlot(data1, "percent.mt")
+
+saveRDS(data1, "Control.rds")
+```
+
+```{r}
+#load RDS files
+Rust <- readRDS("Drosophila_ovary_atlas_Rust_2020.rds")
+data1 <- readRDS("Control.rds")
+data2 <- readRDS("Nhe2RNAi.rds")
+data3 <- readRDS("Nhe2WT.rds")
+data4 <- readRDS("Nhe2asterisk.rds")
+```
+
+```{r}
+#relabel metadata
+data1@meta.data[, "dataset"] <- "data1"
+data2@meta.data[, "dataset"] <- "data2"
+data3@meta.data[, "dataset"] <- "data3"
+data4@meta.data[, "dataset"] <- "data4"
+
+data1 <- RenameCells(data1, add.cell.id = "Control2")
+data2 <- RenameCells(data2, add.cell.id = "Nhe2RNAi")
+data3 <- RenameCells(data3, add.cell.id = "Nhe2WT")
+data4 <- RenameCells(data4, add.cell.id = "Nhe2asterisk")
+```
+
+```{r}
+#combine data, split by dataset, and carry through process of normalizing and then identifying principle components, etc.
+combined <- merge(x = Rust, y = c(data1, data2, data3, data4), add.cell.ids = c("Rust", "WT", "Nhe2RNAi", "Nhe2WT", "Nhe2asterisk"), merge.data = T, project = "ov")
+
+ifnb.list <- SplitObject(combined, split.by = "dataset")
+
+ifnb.list <- lapply(X = ifnb.list, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+combined.anchors <- FindIntegrationAnchors(object.list = ifnb.list, dims = 1:20)
+combined <- IntegrateData(anchorset = combined.anchors, dims = 1:20)
+
+combined <- FindVariableFeatures(combined, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(combined)
+combined <- ScaleData(combined, features = all.genes)
+combined <- RunPCA(combined, features = VariableFeatures(object = combined))
+combined <- JackStraw(combined, num.replicate = 100)
+combined <- ScoreJackStraw(combined, dims = 1:20)
+ElbowPlot(combined)
+```
+
+```{r}
+#generate combined RDS file
+combined <- FindNeighbors(combined, dims = 1:20)
+
+combined <- RunUMAP(combined, dims = 1:18) 
+
+UMAPPlot(combined, group.by = "dataset", pt.size = 1)
+#you can use this to cross-check the alignment
+
+saveRDS(combined, "combined1.rds")
+```
+
