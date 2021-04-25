@@ -4,9 +4,10 @@ output: html_notebook
 ---
 
 ```{r}
-#load libraries and set working direcctory
+#load libraries
 library(Seurat)
-setwd("/wynton/group/nystul/Nhe2_12_2020")
+library(patchwork)
+library(dplyr)
 ```
 
 ```{r}
@@ -106,12 +107,53 @@ ElbowPlot(combined)
 ```{r}
 #generate combined RDS file
 combined <- FindNeighbors(combined, dims = 1:20)
-
 combined <- RunUMAP(combined, dims = 1:18) 
-
 UMAPPlot(combined, group.by = "dataset", pt.size = 1)
 #you can use this to cross-check the alignment
 
 saveRDS(combined, "combined1.rds")
+```
+
+```{r}
+#load data, set dataset names and view plots
+combined <- readRDS("/wynton/group/nystul/Rstudio/Nhe2_12_2020/combined1.rds")
+UMAPPlot(combined, cells.highlight=WhichCells(ifnb.list$data1))
+combined <- SetIdent(combined, cells = WhichCells(ifnb.list$data1), "Control2")
+combined <- SetIdent(combined, cells = WhichCells(ifnb.list$data2), "Nhe2RNAi")
+combined <- SetIdent(combined, cells = WhichCells(ifnb.list$data3), "Nhe2WT")
+combined <- SetIdent(combined, cells = WhichCells(ifnb.list$data4), "Nhe2asterisk")
+combined <- SetIdent(combined, cells = WhichCells(ifnb.list$dataset1), "WT")
+combined <- SetIdent(combined, cells = WhichCells(ifnb.list$dataset2), "WT")
+combined <- SetIdent(combined, cells = WhichCells(ifnb.list$dataset3), "WT")
+
+UMAPPlot(combined, cells.highlight=WhichCells(combined, idents="WT"))
+UMAPPlot(combined, cells.highlight=WhichCells(combined, idents="Control2"))
+
+```
+
+```{r}
+#Control includes many cells that are missing from Rust but present in mutant datasets, so subset out Rust
+
+combined1_woRust <- subset(combined, idents = "WT", invert = TRUE)
+UMAPPlot(combined1_woRust)
+```
+
+```{r}
+#cluster combined object, rename clusters, and visualize
+combined1_1 <- FindClusters(combined, resolution = 0.5)
+combined1_1 <- RunUMAP(combined1_1, dims = 1:18) 
+UMAPPlot(combined1_1)
+combined1_1 <- SetIdent(combined1_1, cells = WhichCells(ifnb.list$data1), "Control2")
+combined1_1 <- SetIdent(combined1_1, cells = WhichCells(ifnb.list$data2), "Nhe2RNAi")
+combined1_1 <- SetIdent(combined1_1, cells = WhichCells(ifnb.list$data3), "Nhe2WT")
+combined1_1 <- SetIdent(combined1_1, cells = WhichCells(ifnb.list$data4), "Nhe2asterisk")
+combined1_1 <- SetIdent(combined1_1, cells = WhichCells(ifnb.list$dataset1), "WT")
+combined1_1 <- SetIdent(combined1_1, cells = WhichCells(ifnb.list$dataset2), "WT")
+combined1_1 <- SetIdent(combined1_1, cells = WhichCells(ifnb.list$dataset3), "WT")
+
+UMAPPlot(combined1_1, cells.highlight=WhichCells(combined, idents="WT"))
+UMAPPlot(combined1_1, cells.highlight=WhichCells(combined, idents="Control2"))
+UMAPPlot(combined1_1, cells.highlight=WhichCells(combined, idents="Nhe2RNAi"))
+UMAPPlot(combined1_1, cells.highlight=WhichCells(combined, idents="Nhe2WT"))
 ```
 
