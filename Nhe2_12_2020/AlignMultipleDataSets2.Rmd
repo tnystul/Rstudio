@@ -1,0 +1,187 @@
+---
+title: "Align multiple datasets 2"
+output: html_notebook
+---
+
+
+```{r}
+#load libraries
+library(Seurat)
+library(patchwork)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+control1 <- readRDS("control1.rds")
+control2 <- readRDS("control2.rds")
+Nhe2RNAi <- readRDS("Nhe2RNAi_2.rds")
+Nhe2WT <- readRDS("Nhe2WT_2.rds")
+Nhe2asterisk <- readRDS("Nhe2asterisk_2.rds")
+```
+
+```{r}
+#WT1
+
+seur.data <- Read10X("/wynton/group/nystul/Rstudio/Nhe2_12_2020/Control_NextGem/outs/filtered_feature_bc_matrix")
+control1 <- CreateSeuratObject(counts = seur.data, project = "control1", min.cells = 3, min.features = 200)
+control1
+
+control1[["percent.mt"]] <- PercentageFeatureSet(control1, pattern = "mt:")
+VlnPlot(control1, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+control1 -> control1_orig
+
+control1 <- subset(control1_orig, subset = nFeature_RNA > 500 & nFeature_RNA < 3000 & nCount_RNA > 1000 & nCount_RNA < 25000 & percent.mt < 30)
+control1
+
+
+#WT2
+
+seur.data <- Read10X("/wynton/group/nystul/Rstudio/Nhe2_12_2020/WT_NextGem/filtered_feature_bc_matrix")
+control2 <- CreateSeuratObject(counts = seur.data, project = "control1", min.cells = 3, min.features = 200)
+control2
+
+
+control2[["percent.mt"]] <- PercentageFeatureSet(control2, pattern = "mt:")
+VlnPlot(control2, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+control2 -> control2_orig
+
+control2 <- subset(control2_orig, subset = nFeature_RNA > 500 & nFeature_RNA < 3000 & nCount_RNA > 1000 & nCount_RNA < 25000 & percent.mt < 30)
+control2
+
+
+#Nhe2RNAi
+
+seur.data <- Read10X("/wynton/group/nystul/Rstudio/Nhe2_12_2020/Nhe2RNAi/filtered_feature_bc_matrix/")
+Nhe2RNAi <- CreateSeuratObject(counts = seur.data, project = "Nhe2RNAi", min.cells = 3, min.features = 200)
+Nhe2RNAi
+
+
+Nhe2RNAi[["percent.mt"]] <- PercentageFeatureSet(Nhe2RNAi, pattern = "mt:")
+VlnPlot(Nhe2RNAi, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+Nhe2RNAi_orig <- Nhe2RNAi
+
+Nhe2RNAi <- subset(Nhe2RNAi_orig, subset = nFeature_RNA > 500 & nFeature_RNA < 3800 & nCount_RNA > 1000 & nCount_RNA < 25000 & percent.mt < 30)
+Nhe2RNAi
+
+
+#Nhe2WT
+seur.data <- Read10X("/wynton/group/nystul/Rstudio/Nhe2_12_2020/Nhe2WT/filtered_feature_bc_matrix/")
+Nhe2WT <- CreateSeuratObject(counts = seur.data, project = "Nhe2WT", min.cells = 3, min.features = 200)
+Nhe2WT
+
+
+Nhe2WT[["percent.mt"]] <- PercentageFeatureSet(Nhe2WT, pattern = "mt")
+VlnPlot(Nhe2WT, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+Nhe2WT_orig <- Nhe2WT
+
+Nhe2WT <- subset(Nhe2WT_orig, subset = nFeature_RNA > 500 & nFeature_RNA < 3800 & nCount_RNA > 1000 & nCount_RNA < 25000 & percent.mt < 30)
+Nhe2WT
+
+
+#Nhe2asterisk
+seur.data <- Read10X("/wynton/group/nystul/Rstudio/Nhe2_12_2020/Nhe2asterisk/filtered_feature_bc_matrix/")
+Nhe2asterisk <- CreateSeuratObject(counts = seur.data, project = "Nhe2asterisk", min.cells = 3, min.features = 200)
+Nhe2asterisk
+
+Nhe2asterisk[["percent.mt"]] <- PercentageFeatureSet(Nhe2asterisk, pattern = "mt:")
+VlnPlot(Nhe2asterisk, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+Nhe2asterisk_orig <- Nhe2asterisk
+
+Nhe2asterisk <- subset(Nhe2asterisk_orig, subset = nFeature_RNA > 500 & nFeature_RNA < 4000 & nCount_RNA > 1000 & nCount_RNA < 25000 & percent.mt < 30)
+Nhe2asterisk
+
+#renaming datasets
+control1@meta.data[, "dataset"] <- "control1"
+control2@meta.data[, "dataset"] <- "control2"
+Nhe2RNAi@meta.data[, "dataset"] <- "Nhe2RNAi"
+Nhe2WT@meta.data[, "dataset"] <- "Nhe2RNAi"
+Nhe2WT@meta.data[, "dataset"] <- "Nhe2WT"
+Nhe2asterisk@meta.data[, "dataset"] <- "Nhe2asterisk"
+
+
+control1 <- RenameCells(control1, add.cell.id = "control1")
+control2 <- RenameCells(control2, add.cell.id = "control2")
+Nhe2RNAi <- RenameCells(Nhe2RNAi, add.cell.id = "Nhe2RNAi")
+Nhe2WT <- RenameCells(Nhe2WT, add.cell.id = "Nhe2WT")
+Nhe2asterisk <- RenameCells(Nhe2asterisk, add.cell.id = "Nhe2asterisk")
+```
+
+```{r}
+#saving datasets
+saveRDS(control1, "control1.rds")
+saveRDS(control2, "control2.rds")
+saveRDS(Nhe2RNAi, "Nhe2RNAi_2.rds")
+saveRDS(Nhe2WT, "Nhe2WT_2.rds")
+saveRDS(Nhe2asterisk, "Nhe2asterisk_2.rds")
+```
+
+```{r}
+combined <- merge(x = control1, y = c(control2,Nhe2asterisk,Nhe2RNAi,Nhe2WT),  merge.data = T, project = "ov")
+
+rm(list=setdiff(ls(), "combined"))
+DefaultAssay(combined) <- "RNA"
+
+ifnb.list <- SplitObject(combined, split.by = "dataset")
+
+ifnb.list <- lapply(X = ifnb.list, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+
+combined.anchors <- FindIntegrationAnchors(object.list = ifnb.list, dims = 1:20, anchor.features = 2000)
+
+combined <- IntegrateData(anchorset = combined.anchors, dims = 1:20)
+
+DefaultAssay(combined) <- "RNA"
+
+combined <- NormalizeData(combined)
+
+DefaultAssay(combined) <- "integrated"
+combined <- FindVariableFeatures(combined, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(combined)
+combined <- ScaleData(combined, features = all.genes)
+combined <- RunPCA(combined, features = VariableFeatures(object = combined))
+combined <- JackStraw(combined, num.replicate = 100)
+combined <- ScoreJackStraw(combined, dims = 1:20)
+ElbowPlot(combined)
+
+combined <- FindNeighbors(combined, dims = 1:17)
+
+combined <- RunUMAP(combined, dims = 1:17) 
+
+UMAPPlot(combined, group.by = "dataset", pt.size = 1)
+saveRDS(combined, "combines_corrected_23_03.rds")
+
+```
+
+```{r}
+combined <- FindClusters(combined, resolution = 0.08)
+UMAPPlot(combined)
+saveRDS(combined, "combined_clusters_23_03.rds")
+
+```
+
+```{r}
+DotPlot(combined, features = c("Fas3", "Wnt4", "vas", "bam", "GstS1", "tj", "SPARC"))
+```
+
+```{r}
+WT_cells <- WhichCells(ifnb.list$control1)
+WT_cells <- append(WT_cells, WhichCells(ifnb.list$control2))
+DimPlot(combined, cells.highlight = WT_cells, pt.size = 1) + 
+  scale_color_manual(labels = c("mutant", "WT"), values = c("magenta", "#009E73"))
+DimPlot(combined, cells.highlight = WhichCells(ifnb.list$Nhe2RNAi)) + 
+  scale_color_manual(labels = c("all cells", "NheRNAi"), values = c("grey", "#009E73"))
+```
+
+```{r}
+Cluster2 <- subset(combined, idents = "2")
+UMAPPlot(Cluster2)
+Cluster2 <- RunTSNE(Cluster2)
+TSNEPlot(Cluster2)
+Cluster2
+saveRDS(Cluster2, "combined_cluster2.rds")
+```
