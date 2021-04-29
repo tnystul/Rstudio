@@ -21,6 +21,12 @@ Nhe2asterisk <- readRDS("Nhe2asterisk_2.rds")
 ```
 
 ```{r}
+combined <- readRDS("combined_clusters_28_04.rds")
+Cluster2 <- readRDS("combined_cluster2.rds")
+ifnb.list <- readRDS("ifnb.rds")
+```
+
+```{r}
 #WT1
 
 seur.data <- Read10X("/wynton/group/nystul/Rstudio/Nhe2_12_2020/Control_NextGem/outs/filtered_feature_bc_matrix")
@@ -119,7 +125,7 @@ saveRDS(Nhe2asterisk, "Nhe2asterisk_2.rds")
 ```{r}
 combined <- merge(x = control1, y = c(control2,Nhe2asterisk,Nhe2RNAi,Nhe2WT),  merge.data = T, project = "ov")
 
-rm(list=setdiff(ls(), "combined"))
+#rm(list=setdiff(ls(), "combined"))
 DefaultAssay(combined) <- "RNA"
 
 ifnb.list <- SplitObject(combined, split.by = "dataset")
@@ -128,7 +134,7 @@ ifnb.list <- lapply(X = ifnb.list, FUN = function(x) {
   x <- NormalizeData(x)
   x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
 })
-
+saveRDS(ifnb.list, "ifnb.rds")
 
 combined.anchors <- FindIntegrationAnchors(object.list = ifnb.list, dims = 1:20, anchor.features = 2000)
 
@@ -153,14 +159,14 @@ combined <- FindNeighbors(combined, dims = 1:17)
 combined <- RunUMAP(combined, dims = 1:17) 
 
 UMAPPlot(combined, group.by = "dataset", pt.size = 1)
-saveRDS(combined, "combines_corrected_23_03.rds")
+saveRDS(combined, "combined_corrected_28_04.rds")
 
 ```
 
 ```{r}
 combined <- FindClusters(combined, resolution = 0.08)
 UMAPPlot(combined)
-saveRDS(combined, "combined_clusters_23_03.rds")
+saveRDS(combined, "combined_clusters_28_04.rds")
 
 ```
 
@@ -173,8 +179,6 @@ WT_cells <- WhichCells(ifnb.list$control1)
 WT_cells <- append(WT_cells, WhichCells(ifnb.list$control2))
 DimPlot(combined, cells.highlight = WT_cells, pt.size = 1) + 
   scale_color_manual(labels = c("mutant", "WT"), values = c("magenta", "#009E73"))
-DimPlot(combined, cells.highlight = WhichCells(ifnb.list$Nhe2RNAi)) + 
-  scale_color_manual(labels = c("all cells", "NheRNAi"), values = c("grey", "#009E73"))
 ```
 
 ```{r}
@@ -184,4 +188,6 @@ Cluster2 <- RunTSNE(Cluster2)
 TSNEPlot(Cluster2)
 Cluster2
 saveRDS(Cluster2, "combined_cluster2.rds")
+TSNEPlot(Cluster2, cells.highlight = WhichCells(ifnb.list$Nhe2RNAi)) + 
+  scale_color_manual(labels = c("all cells", "Nhe2RNAi"), values = c("grey", "#009E73"))
 ```
