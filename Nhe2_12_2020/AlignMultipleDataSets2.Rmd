@@ -24,6 +24,7 @@ Nhe2asterisk <- readRDS("Nhe2asterisk_2.rds")
 combined <- readRDS("combined_clusters_28_04.rds")
 Cluster2 <- readRDS("combined_cluster2.rds")
 ifnb.list <- readRDS("ifnb.rds")
+Cluster2.markers <- read.csv("Cluster2_Markers.csv")
 ```
 
 ```{r}
@@ -136,6 +137,9 @@ ifnb.list <- lapply(X = ifnb.list, FUN = function(x) {
 })
 saveRDS(ifnb.list, "ifnb.rds")
 
+#data integration has the following code here:  
+  #features <- SelectIntegrationFeatures(object.list = ifnb.list)
+  #immune.anchors <- FindIntegrationAnchors(object.list = ifnb.list, anchor.features = features)
 combined.anchors <- FindIntegrationAnchors(object.list = ifnb.list, dims = 1:20, anchor.features = 2000)
 
 combined <- IntegrateData(anchorset = combined.anchors, dims = 1:20)
@@ -191,3 +195,11 @@ saveRDS(Cluster2, "combined_cluster2.rds")
 TSNEPlot(Cluster2, cells.highlight = WhichCells(ifnb.list$Nhe2RNAi)) + 
   scale_color_manual(labels = c("all cells", "Nhe2RNAi"), values = c("grey", "#009E73"))
 ```
+
+
+```{r}
+DefaultAssay(combined) <- "RNA"
+Cluster2.markers <- FindConservedMarkers(combined, ident.1 = 2, grouping.var = "dataset", verbose = FALSE)
+head(Cluster2.markers)
+```
+
