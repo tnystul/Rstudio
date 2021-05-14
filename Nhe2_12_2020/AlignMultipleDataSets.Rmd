@@ -155,5 +155,6 @@ UMAPPlot(combined1_1, cells.highlight=WhichCells(combined, idents="WT"))
 UMAPPlot(combined1_1, cells.highlight=WhichCells(combined, idents="Control2"))
 UMAPPlot(combined1_1, cells.highlight=WhichCells(combined, idents="Nhe2RNAi"))
 UMAPPlot(combined1_1, cells.highlight=WhichCells(combined, idents="Nhe2WT"))
+saveRDS(combined1_1, "combined1_1.rds")
 ```
 
