@@ -1,0 +1,110 @@
+---
+title: "Align multiple datasets 2"
+output: html_notebook
+---
+
+
+```{r load libraries}
+library(Seurat)
+library(patchwork)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r load initial files}
+#list of files to load into the environment.  This can be run after the chunks below have been run to generate the files
+control <- readRDS("control.rds")
+bam <- readRDS("bam.rds")
+ZhiCombined <- readRDS("combined.rds")
+```
+
+```{r merge datasets}
+DefaultAssay(ZhiCombined) <- "RNA"
+
+Zhi.list <- SplitObject(ZhiCombined, split.by = "dataset")
+
+Zhi.list <- lapply(X = Zhi.list, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+saveRDS(Zhi.list, "ifnb.rds")
+
+Zhi.anchors <- FindIntegrationAnchors(object.list = Zhi.list, dims = 1:20, anchor.features = 2000)
+
+ZhiCombined <- IntegrateData(anchorset = Zhi.anchors, dims = 1:20)
+
+DefaultAssay(ZhiCombined) <- "RNA"
+
+ZhiCombined <- NormalizeData(ZhiCombined)
+
+DefaultAssay(ZhiCombined) <- "integrated"
+ZhiCombined <- FindVariableFeatures(ZhiCombined, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(ZhiCombined)
+ZhiCombined <- ScaleData(ZhiCombined, features = all.genes)
+ZhiCombined <- RunPCA(ZhiCombined, features = VariableFeatures(object = ZhiCombined))
+ZhiCombined <- JackStraw(ZhiCombined, num.replicate = 100)
+ZhiCombined <- ScoreJackStraw(ZhiCombined, dims = 1:20)
+ElbowPlot(ZhiCombined)
+
+ZhiCombined <- FindNeighbors(ZhiCombined, dims = 1:20)
+
+ZhiCombined <- RunUMAP(ZhiCombined, dims = 1:20) 
+
+UMAPPlot(ZhiCombined, group.by = "dataset", pt.size = 1)
+saveRDS(ZhiCombined, "ZhiCombined_corrected_0520.rds")
+
+```
+
+```{r find clusters}
+ZhiCombined.1 <- FindClusters(ZhiCombined, resolution = 0.1)
+UMAPPlot(ZhiCombined.1)
+saveRDS(ZhiCombined.1, "ZhiCombined.1.rds")
+
+```
+
+```{r determine identity of clusters}
+#this is just a small sampling of markers.  There are many more we can use.  Fas3 is a marker of early follicle cells (including FSCs); Wnt4 is a marker of FSCs and ECs; vas and bam are markers of germ cells; GstS1 is a marker of late ECs and early follicle cells; TJ marks almost all somatic cells (i.e. not germ cells); SPARC marks late follicle cells.  We are interested in FSCs and early follicle cells (which includes "early pFCs" and "late pFCs")
+DotPlot(ZhiCombined.1, features = c("Fas3", "Wnt4", "vas", "bam", "GstS1", "tj", "SPARC"))
+FeaturePlot(ZhiCombined.1, features = c("Fas3", "vas"), min.cutoff = "q50")
+UMAPPlot(ZhiCombined.1)
+```
+
+```{r define WT}
+#this just adds a "WT" tag to the cells from the wildtype clusters and generates a plot to show where they are
+WT_cells <- WhichCells(Zhi.list$control)
+WT_cells <- append(WT_cells, WhichCells(Zhi.list$control))
+DimPlot(ZhiCombined.1, cells.highlight = WT_cells, pt.size = 1) + 
+  scale_color_manual(labels = c("bam", "WT"), values = c("magenta", "#009E73"))
+```
+
+```{r subset data}
+#this pulls out a cluster of interest.  For example, if you want to pull out cluster 2 because it contains the Fas3+ cells, then run this code as.  If you want a different cluster, change "cluster 2" to another cluster number  and idents = "2" to idents = another number
+ZhiCluster0 <- subset(ZhiCombined.1, idents = "0")
+UMAPPlot(ZhiCluster0)
+```
+
+
+
+```{r}
+Cluster2 <- RunTSNE(ZhiCluster2)
+TSNEPlot(Cluster2)
+Cluster2
+saveRDS(Cluster2, "combined_cluster2.rds")
+TSNEPlot(Cluster2, cells.highlight = WhichCells(ifnb.list$Nhe2RNAi)) + 
+  scale_color_manual(labels = c("all cells", "Nhe2RNAi"), values = c("grey", "#009E73"))
+```
+
+```{r}
+DefaultAssay(ZhiCombined.1) <- "RNA"
+ZhiCluster0.markers <- FindConservedMarkers(ZhiCombined.1, ident.1 = 0, grouping.var = "dataset", verbose = FALSE)
+head(ZhiCluster0.markers)
+write.csv(ZhiCluster0.markers, "ZhiCluster0.csv")
+```
+
+```{r}
+DefaultAssay(ZhiCombined.1) <- "RNA"
+ZhiCluster2.markers <- FindConservedMarkers(ZhiCombined.1, ident.1 = 2, grouping.var = "dataset", verbose = FALSE)
+head(ZhiCluster2.markers)
+write.csv(ZhiCluster2.markers, "ZhiCluster2.csv")
+```
