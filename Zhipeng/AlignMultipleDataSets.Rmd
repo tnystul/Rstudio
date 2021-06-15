@@ -1,5 +1,5 @@
 ---
-title: "Align multiple datasets 2"
+title: "Align Zhi bam and control datasets"
 output: html_notebook
 ---
 
@@ -11,11 +11,46 @@ library(dplyr)
 library(ggplot2)
 ```
 
-```{r load initial files}
-#list of files to load into the environment.  This can be run after the chunks below have been run to generate the files
+```{r generate seurat objects}
+seur.data <- Read10X("/wynton/group/nystul/Rstudio/Zhipeng/WT/filtered_feature_bc_matrix/")
+control <- CreateSeuratObject(counts = seur.data, project = "control", min.cells = 3, min.features = 200)
+control
+
+control[["percent.mt"]] <- PercentageFeatureSet(control, pattern = "mt:")
+VlnPlot(control, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+#filter dataset
+control <- subset(control, subset = nFeature_RNA > 500 & nFeature_RNA < 2000 & nCount_RNA > 1000 & nCount_RNA < 25000 & percent.mt < 30)
+control
+
+saveRDS(control, "control.rds")
+
+# install dataset
+seur.data <- Read10X("/wynton/group/nystul/Rstudio/Zhipeng/Bam/filtered_feature_bc_matrix/")
+bam <- CreateSeuratObject(counts = seur.data, project = "bam", min.cells = 3, min.features = 200)
+bam
+
+bam[["percent.mt"]] <- PercentageFeatureSet(bam, pattern = "mt:")
+VlnPlot(bam, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+#filter dataset
+bam <- subset(bam, subset = nFeature_RNA > 500 & nFeature_RNA < 2500 & nCount_RNA > 1000 & nCount_RNA < 25000 & percent.mt < 10)
+bam
+
+saveRDS(bam, "bam.rds")
+```
+
+```{r eval=FALSE}
+#list of files to load into the environment.  
 control <- readRDS("control.rds")
 bam <- readRDS("bam.rds")
-ZhiCombined <- readRDS("combined.rds")
+```
+
+```{r}
+control@meta.data[, "dataset"] <- "Zhicontrol"
+bam@meta.data[, "dataset"] <- "bam"
+ZhiCombined <- merge(x = control, y = bam,  merge.data = T, project = "ov")
+saveRDS(ZhiCombined, "ZhiCombined.rds")
 ```
 
 ```{r merge datasets}
@@ -64,47 +99,42 @@ saveRDS(ZhiCombined.1, "ZhiCombined.1.rds")
 ```
 
 ```{r determine identity of clusters}
-#this is just a small sampling of markers.  There are many more we can use.  Fas3 is a marker of early follicle cells (including FSCs); Wnt4 is a marker of FSCs and ECs; vas and bam are markers of germ cells; GstS1 is a marker of late ECs and early follicle cells; TJ marks almost all somatic cells (i.e. not germ cells); SPARC marks late follicle cells.  We are interested in FSCs and early follicle cells (which includes "early pFCs" and "late pFCs")
-DotPlot(ZhiCombined.1, features = c("Fas3", "Wnt4", "vas", "bam", "GstS1", "tj", "SPARC"))
-FeaturePlot(ZhiCombined.1, features = c("Fas3", "vas"), min.cutoff = "q50")
+DotPlot(ZhiCombined.1, features = c("Fas3", "Wnt4", "vas", "bam", "GstS1", "tj", "SPARC", "bgcn", "blanks"))
+FeaturePlot(ZhiCombined.1, features = c("Fas3", "vas", "bgcn", "blanks"), min.cutoff = "q50")
 UMAPPlot(ZhiCombined.1)
 ```
 
-```{r define WT}
-#this just adds a "WT" tag to the cells from the wildtype clusters and generates a plot to show where they are
-WT_cells <- WhichCells(Zhi.list$control)
-WT_cells <- append(WT_cells, WhichCells(Zhi.list$control))
-DimPlot(ZhiCombined.1, cells.highlight = WT_cells, pt.size = 1) + 
-  scale_color_manual(labels = c("bam", "WT"), values = c("magenta", "#009E73"))
-```
 
 ```{r subset data}
-#this pulls out a cluster of interest.  For example, if you want to pull out cluster 2 because it contains the Fas3+ cells, then run this code as.  If you want a different cluster, change "cluster 2" to another cluster number  and idents = "2" to idents = another number
-ZhiCluster0 <- subset(ZhiCombined.1, idents = "0")
-UMAPPlot(ZhiCluster0)
-```
-
-
-
-```{r}
-Cluster2 <- RunTSNE(ZhiCluster2)
-TSNEPlot(Cluster2)
-Cluster2
-saveRDS(Cluster2, "combined_cluster2.rds")
-TSNEPlot(Cluster2, cells.highlight = WhichCells(ifnb.list$Nhe2RNAi)) + 
-  scale_color_manual(labels = c("all cells", "Nhe2RNAi"), values = c("grey", "#009E73"))
+ZhiCluster1 <- subset(ZhiCombined.1, idents = "1")
+UMAPPlot(ZhiCluster1, group.by="dataset")
+ZhiCluster2 <- subset(ZhiCombined.1, idents = "2")
+UMAPPlot(ZhiCluster2, group.by="dataset")
 ```
 
 ```{r}
-DefaultAssay(ZhiCombined.1) <- "RNA"
-ZhiCluster0.markers <- FindConservedMarkers(ZhiCombined.1, ident.1 = 0, grouping.var = "dataset", verbose = FALSE)
-head(ZhiCluster0.markers)
-write.csv(ZhiCluster0.markers, "ZhiCluster0.csv")
+ZhiCombined.all_markers <- FindAllMarkers(ZhiCombined.1, only.pos = T)
+write.csv(ZhiCombined.all_markers, "ZhiCombined.all_markers.csv")
 ```
 
+For the next chunk, a file called Cluster0.csv needs to be generated using the python code that parses out the gene names in the ZhiCombined.all_markers.csv file that are markers of Cluster 0 with an adjusted p-value of less than 0.5
+
 ```{r}
-DefaultAssay(ZhiCombined.1) <- "RNA"
-ZhiCluster2.markers <- FindConservedMarkers(ZhiCombined.1, ident.1 = 2, grouping.var = "dataset", verbose = FALSE)
-head(ZhiCluster2.markers)
-write.csv(ZhiCluster2.markers, "ZhiCluster2.csv")
+cell_genotype = "ZhiCluster1"
+markers = read.csv(paste(cell_genotype, ".csv", sep = ""), header = F, na.strings=c("","NA"))
+markers.list <- split(markers, seq(nrow(markers)))
+
+for(x in 1:nrow(markers)) {
+    DotPlot(ZhiCluster1, features = markers.list[x], group.by = "dataset")
+    ggsave(paste("MarkerListPlots/", cell_genotype, x, "_DotPlot", ".pdf", sep = ""), width = 7, height = 10)
+}
+
+cell_genotype = "ZhiCluster2"
+markers = read.csv(paste(cell_genotype, ".csv", sep = ""), header = F, na.strings=c("","NA"))
+markers.list <- split(markers, seq(nrow(markers)))
+
+for(x in 1:nrow(markers)) {
+    DotPlot(ZhiCluster2, features = markers.list[x], group.by = "dataset")
+    ggsave(paste("MarkerListPlots/", cell_genotype, x, "_DotPlot", ".pdf", sep = ""), width = 7, height = 10)
+}
 ```
