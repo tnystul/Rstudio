@@ -1,0 +1,140 @@
+---
+title: "Align Zhi bam and control datasets"
+output: html_notebook
+---
+
+
+```{r load libraries}
+library(Seurat)
+library(patchwork)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r generate seurat objects}
+seur.data <- Read10X("/wynton/group/nystul/Rstudio/Zhipeng/WT/filtered_feature_bc_matrix/")
+control <- CreateSeuratObject(counts = seur.data, project = "control", min.cells = 3, min.features = 200)
+control
+
+control[["percent.mt"]] <- PercentageFeatureSet(control, pattern = "mt:")
+VlnPlot(control, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+#filter dataset
+control <- subset(control, subset = nFeature_RNA > 500 & nFeature_RNA < 2000 & nCount_RNA > 1000 & nCount_RNA < 25000 & percent.mt < 30)
+control
+
+saveRDS(control, "control.rds")
+
+# install dataset
+seur.data <- Read10X("/wynton/group/nystul/Rstudio/Zhipeng/Bam/filtered_feature_bc_matrix/")
+bam <- CreateSeuratObject(counts = seur.data, project = "bam", min.cells = 3, min.features = 200)
+bam
+
+bam[["percent.mt"]] <- PercentageFeatureSet(bam, pattern = "mt:")
+VlnPlot(bam, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+#filter dataset
+bam <- subset(bam, subset = nFeature_RNA > 500 & nFeature_RNA < 2500 & nCount_RNA > 1000 & nCount_RNA < 25000 & percent.mt < 10)
+bam
+
+saveRDS(bam, "bam.rds")
+```
+
+```{r eval=FALSE}
+#list of files to load into the environment.  
+control <- readRDS("control.rds")
+bam <- readRDS("bam.rds")
+```
+
+```{r}
+control@meta.data[, "dataset"] <- "Zhicontrol"
+bam@meta.data[, "dataset"] <- "bam"
+ZhiCombined <- merge(x = control, y = bam,  merge.data = T, project = "ov")
+saveRDS(ZhiCombined, "ZhiCombined.rds")
+```
+
+```{r merge datasets}
+DefaultAssay(ZhiCombined) <- "RNA"
+
+Zhi.list <- SplitObject(ZhiCombined, split.by = "dataset")
+
+Zhi.list <- lapply(X = Zhi.list, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+saveRDS(Zhi.list, "ifnb.rds")
+
+Zhi.anchors <- FindIntegrationAnchors(object.list = Zhi.list, dims = 1:20, anchor.features = 2000)
+
+ZhiCombined <- IntegrateData(anchorset = Zhi.anchors, dims = 1:20)
+
+DefaultAssay(ZhiCombined) <- "RNA"
+
+ZhiCombined <- NormalizeData(ZhiCombined)
+
+DefaultAssay(ZhiCombined) <- "integrated"
+ZhiCombined <- FindVariableFeatures(ZhiCombined, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(ZhiCombined)
+ZhiCombined <- ScaleData(ZhiCombined, features = all.genes)
+ZhiCombined <- RunPCA(ZhiCombined, features = VariableFeatures(object = ZhiCombined))
+ZhiCombined <- JackStraw(ZhiCombined, num.replicate = 100)
+ZhiCombined <- ScoreJackStraw(ZhiCombined, dims = 1:20)
+ElbowPlot(ZhiCombined)
+
+ZhiCombined <- FindNeighbors(ZhiCombined, dims = 1:20)
+
+ZhiCombined <- RunUMAP(ZhiCombined, dims = 1:20) 
+
+UMAPPlot(ZhiCombined, group.by = "dataset", pt.size = 1)
+saveRDS(ZhiCombined, "ZhiCombined_corrected_0520.rds")
+
+```
+
+```{r find clusters}
+ZhiCombined.1 <- FindClusters(ZhiCombined, resolution = 0.1)
+UMAPPlot(ZhiCombined.1)
+saveRDS(ZhiCombined.1, "ZhiCombined.1.rds")
+
+```
+
+```{r determine identity of clusters}
+DotPlot(ZhiCombined.1, features = c("Fas3", "Wnt4", "vas", "bam", "GstS1", "tj", "SPARC", "bgcn", "blanks"))
+FeaturePlot(ZhiCombined.1, features = c("Fas3", "vas", "bgcn", "blanks"), min.cutoff = "q50")
+UMAPPlot(ZhiCombined.1)
+```
+
+
+```{r subset data}
+ZhiCluster1 <- subset(ZhiCombined.1, idents = "1")
+UMAPPlot(ZhiCluster1, group.by="dataset")
+ZhiCluster2 <- subset(ZhiCombined.1, idents = "2")
+UMAPPlot(ZhiCluster2, group.by="dataset")
+```
+
+```{r}
+ZhiCombined.all_markers <- FindAllMarkers(ZhiCombined.1, only.pos = T)
+write.csv(ZhiCombined.all_markers, "ZhiCombined.all_markers.csv")
+```
+
+For the next chunk, a file called Cluster0.csv needs to be generated using the python code that parses out the gene names in the ZhiCombined.all_markers.csv file that are markers of Cluster 0 with an adjusted p-value of less than 0.5
+
+```{r}
+cell_genotype = "ZhiCluster1"
+markers = read.csv(paste(cell_genotype, ".csv", sep = ""), header = F, na.strings=c("","NA"))
+markers.list <- split(markers, seq(nrow(markers)))
+
+for(x in 1:nrow(markers)) {
+    DotPlot(ZhiCluster1, features = markers.list[x], group.by = "dataset")
+    ggsave(paste("MarkerListPlots/", cell_genotype, x, "_DotPlot", ".pdf", sep = ""), width = 7, height = 10)
+}
+
+cell_genotype = "ZhiCluster2"
+markers = read.csv(paste(cell_genotype, ".csv", sep = ""), header = F, na.strings=c("","NA"))
+markers.list <- split(markers, seq(nrow(markers)))
+
+for(x in 1:nrow(markers)) {
+    DotPlot(ZhiCluster2, features = markers.list[x], group.by = "dataset")
+    ggsave(paste("MarkerListPlots/", cell_genotype, x, "_DotPlot", ".pdf", sep = ""), width = 7, height = 10)
+}
+```
