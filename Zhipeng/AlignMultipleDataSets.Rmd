@@ -9,6 +9,7 @@ library(Seurat)
 library(patchwork)
 library(dplyr)
 library(ggplot2)
+
 ```
 
 ```{r generate seurat objects}
