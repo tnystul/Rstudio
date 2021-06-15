@@ -1,0 +1,36 @@
+---
+title: "Marker List Parsing"
+output:
+  reprex::reprex_document:
+    venue: "gh"
+    advertise: FALSE
+    session_info: TRUE
+    style: TRUE
+    comment: "#;-)"
+    tidyverse_quiet: FALSE
+    std_out_err: TRUE
+knit: reprex::reprex_render
+---
+
+```{r}
+library(Seurat)
+library(tidyverse)
+Rust <- readRDS("FSC_pFC_genotype.rds")
+geno_av <- AverageExpression(Rust, return.seurat = T)
+# geno_av <- readRDS("FSC_pFC_genotype_averaged.rds")
+```
+
+```{r}
+cell_genotype = "yki_lpFC"
+markers = read.csv(paste(cell_genotype, ".csv", sep = ""), header = F, na.strings=c("","NA"))
+markers.list <- split(markers, seq(nrow(markers)))
+
+for(x in 1:nrow(markers)) {
+    DotPlot(Rust, features = markers.list[x])
+    ggsave(paste("MarkerListPlots/", cell_genotype, x, "_DotPlot", ".pdf", sep = ""), width = 7, height = 10)
+    DoHeatmap(geno_av, features = unlist(markers.list[x]), draw.lines = F, raster = T)
+    ggsave(paste("MarkerListPlots/", cell_genotype, x, "_Heatmap", ".pdf", sep = ""), width = 10, height = 5)
+    FeaturePlot(Rust, features = unlist(markers.list[x]))
+    ggsave(paste("MarkerListPlots/", cell_genotype, x, "_FeaturePlot", ".pdf", sep = ""), width = 7, height = 10)
+}
+```
